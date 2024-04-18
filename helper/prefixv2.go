@@ -13,6 +13,24 @@ import (
 	"github.com/hdt3213/rdb/model"
 )
 
+type TmpNode struct {
+	db        int
+	keyPrefix string
+	keyCount  int
+	totalSize int
+}
+
+func (n TmpNode) GetSize() int {
+	return n.totalSize
+}
+
+func getPrefixOfKey(key string, num int) string {
+	if len(key) < num {
+		return key
+	}
+	return key[:num]
+}
+
 // PrefixV2Analyse read rdb file and find the largest N keys.
 // The invoker owns output, FindBiggestKeys won't close it
 func PrefixV2Analyse(rdbFilename string, topN int, maxDepth int, output *os.File, options ...interface{}) error {
@@ -26,8 +44,6 @@ func PrefixV2Analyse(rdbFilename string, topN int, maxDepth int, output *os.File
 	}
 	if maxDepth == 0 {
 		maxDepth = math.MaxInt
-	} else {
-		maxDepth += 2 // for root(depth==1) and database root(depth==2)
 	}
 
 	// decode rdb file
@@ -43,11 +59,24 @@ func PrefixV2Analyse(rdbFilename string, topN int, maxDepth int, output *os.File
 		return err
 	}
 
-	// prefix tree
-	tree := newRadixTree()
+	// key = db index + keyPrefix
+	// value = count, size
+	cache := make(map[string]TmpNode)
 	err = dec.Parse(func(object model.RedisObject) bool {
-		key := genKey(object.GetDBIndex(), object.GetKey())
-		tree.insert(key, object.GetSize())
+		prefix := getPrefixOfKey(object.GetKey(), maxDepth)
+		key := genKey(object.GetDBIndex(), prefix)
+		if data, ok := cache[key]; ok {
+			data.keyCount += 1
+			data.totalSize += object.GetSize()
+			cache[key] = data
+		} else {
+			cache[key] = TmpNode{
+				db:        object.GetDBIndex(),
+				keyPrefix: prefix,
+				keyCount:  1,
+				totalSize: object.GetSize(),
+			}
+		}
 		return true
 	})
 	if err != nil {
@@ -56,17 +85,9 @@ func PrefixV2Analyse(rdbFilename string, topN int, maxDepth int, output *os.File
 
 	// get top list
 	toplist := newToplist(topN)
-	tree.traverse(func(node *radixNode, depth int) bool {
-		if depth > maxDepth {
-			return false
-		}
-		if depth <= 2 {
-			// skip root and database root
-			return true
-		}
+	for _, node := range cache {
 		toplist.add(node)
-		return true
-	})
+	}
 
 	// write into csv
 	_, err = output.WriteString("database,prefix,size,size_readable,key_count\n")
@@ -75,19 +96,18 @@ func PrefixV2Analyse(rdbFilename string, topN int, maxDepth int, output *os.File
 	}
 	csvWriter := csv.NewWriter(output)
 	defer csvWriter.Flush()
-	printNode := func(node *radixNode) error {
-		db, key := parseNodeKey(node.fullpath)
-		dbStr := strconv.Itoa(db)
+	printNode := func(node TmpNode) error {
+		dbStr := strconv.Itoa(node.db)
 		return csvWriter.Write([]string{
 			dbStr,
-			key,
+			node.keyPrefix,
 			strconv.Itoa(node.totalSize),
 			bytefmt.FormatSize(uint64(node.totalSize)),
 			strconv.Itoa(node.keyCount),
 		})
 	}
 	for _, n := range toplist.list {
-		node := n.(*radixNode)
+		node := n.(TmpNode)
 		err := printNode(node)
 		if err != nil {
 			return err
