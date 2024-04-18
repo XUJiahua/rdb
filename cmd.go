@@ -111,6 +111,8 @@ func main() {
 		err = helper.FindBiggestKeys(src, n, outputFile, options...)
 	case "prefix":
 		err = helper.PrefixAnalyse(src, n, maxDepth, outputFile, options...)
+	case "prefixv2":
+		err = helper.PrefixV2Analyse(src, n, maxDepth, outputFile, options...)
 	case "flamegraph":
 		_, err = helper.FlameGraph(src, port, seps, options...)
 		if err != nil {
