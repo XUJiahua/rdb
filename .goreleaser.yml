@@ -11,6 +11,12 @@ builds:
     goarch:
       - amd64
       - arm64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
     # ignore:
     #   # 排除不需要的组合，只保留指定的平台
     #   - goos: windows
