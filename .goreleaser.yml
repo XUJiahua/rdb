@@ -1,0 +1,39 @@
+project_name: rdb
+
+builds:
+  - id: rdb
+    binary: rdb
+    main: ./
+    goos:
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    # ignore:
+    #   # 排除不需要的组合，只保留指定的平台
+    #   - goos: windows
+    #     goarch: arm64
+
+archives:
+  - id: default
+    builds:
+      - rdb
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+release:
+  github:
+    owner: XUJiahua
+    name: rdb
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:" 
