@@ -1,12 +1,15 @@
 package helper
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/hdt3213/rdb/bytefmt"
 	"github.com/hdt3213/rdb/core"
 	"github.com/hdt3213/rdb/model"
@@ -57,6 +60,31 @@ func Filter(rdbFilename string, filterDate string, action string, output *os.Fil
 	var keyCount int
 	var totalSize int
 	switch action {
+	case "del":
+		redisAddr := os.Getenv("REDIS_ADDR")
+		if redisAddr == "" {
+			return errors.New("REDIS_ADDR is not set")
+		}
+		redisPassword := os.Getenv("REDIS_PASSWORD")
+		redisDB, err := strconv.Atoi(os.Getenv("REDIS_DB"))
+		if err != nil {
+			fmt.Printf("REDIS_DB is not set, use default db 0\n")
+			redisDB = 0
+		}
+
+		client := redis.NewClient(&redis.Options{
+			Addr:     redisAddr,
+			Password: redisPassword,
+			DB:       redisDB,
+		})
+		filterAction = func(object model.RedisObject) {
+			key := object.GetKey()
+			fmt.Printf("del key: %s ...\n", key)
+			err := client.Del(context.Background(), key).Err()
+			if err != nil {
+				fmt.Printf("del key %s failed: %v\n", key, err)
+			}
+		}
 	case "sum":
 		filterAction = func(object model.RedisObject) {
 			keyCount++
