@@ -58,6 +58,8 @@ func main() {
 	var regexExpr string
 	var noExpired bool
 	var maxDepth int
+	var filterDate string
+	var action string
 	var err error
 	flagSet.StringVar(&cmd, "c", "", "command for rdb: json")
 	flagSet.StringVar(&output, "o", "", "output file path")
@@ -67,6 +69,8 @@ func main() {
 	flagSet.Var(&seps, "sep", "separator for flame graph")
 	flagSet.StringVar(&regexExpr, "regex", "", "regex expression")
 	flagSet.BoolVar(&noExpired, "no-expired", false, "filter expired keys")
+	flagSet.StringVar(&filterDate, "filter-date", "", "keep keys before date, format: 20250612")
+	flagSet.StringVar(&action, "action", "", "action for filter: print(default), sum")
 	_ = flagSet.Parse(os.Args[1:]) // ExitOnError
 	src := flagSet.Arg(0)
 
@@ -113,6 +117,8 @@ func main() {
 		err = helper.PrefixAnalyse(src, n, maxDepth, outputFile, options...)
 	case "prefixv2":
 		err = helper.PrefixV2Analyse(src, n, maxDepth, outputFile, options...)
+	case "filter":
+		err = helper.Filter(src, filterDate, action, outputFile, options...)
 	case "flamegraph":
 		_, err = helper.FlameGraph(src, port, seps, options...)
 		if err != nil {

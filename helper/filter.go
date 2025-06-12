@@ -1,12 +1,13 @@
 package helper
 
 import (
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/hdt3213/rdb/bytefmt"
 	"github.com/hdt3213/rdb/core"
 	"github.com/hdt3213/rdb/model"
 )
@@ -39,9 +40,39 @@ func parseDate(date string) (time.Time, error) {
 	return time.ParseInLocation(layout, date, time.UTC)
 }
 
+func getLastElement(redisKey string) string {
+	parts := strings.Split(redisKey, ":")
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[len(parts)-1]
+}
+
+type FilterAction func(object model.RedisObject)
+
 // Filter read rdb file and filter the keys that match the condition.
 // The invoker owns output, Filter won't close it
-func Filter(rdbFilename string, expiredDate string, output *os.File, options ...interface{}) error {
+func Filter(rdbFilename string, filterDate string, action string, output *os.File, options ...interface{}) error {
+	var filterAction FilterAction
+	var keyCount int
+	var totalSize int
+	switch action {
+	case "sum":
+		filterAction = func(object model.RedisObject) {
+			keyCount++
+			totalSize += object.GetSize()
+		}
+	default:
+		filterAction = func(object model.RedisObject) {
+			output.WriteString(object.GetKey() + "\n")
+		}
+	}
+
+	filterTime, err := parseDate(filterDate)
+	if err != nil {
+		return fmt.Errorf("parse expired date failed: %v", err)
+	}
+
 	if rdbFilename == "" {
 		return errors.New("src file path is required")
 	}
@@ -59,54 +90,31 @@ func Filter(rdbFilename string, expiredDate string, output *os.File, options ...
 		return err
 	}
 
-	// key = db index + keyPrefix
-	// value = count, size
-	cache := make(map[string]TmpNode)
 	err = dec.Parse(func(object model.RedisObject) bool {
-		prefix := getPrefixOfKey(object.GetKey(), 10)
-		key := genKey(object.GetDBIndex(), prefix)
-		if data, ok := cache[key]; ok {
-			data.keyCount += 1
-			data.totalSize += object.GetSize()
-			cache[key] = data
-		} else {
-			cache[key] = TmpNode{
-				db:        object.GetDBIndex(),
-				keyPrefix: prefix,
-				keyCount:  1,
-				totalSize: object.GetSize(),
-			}
+		key := object.GetKey()
+		timeStr := getLastElement(key)
+		if timeStr == "" {
+			return true
 		}
+		t, err := parseDate(timeStr)
+		if err != nil {
+			return true
+		}
+		if !t.Before(filterTime) {
+			return true
+		}
+
+		filterAction(object)
+
 		return true
 	})
 	if err != nil {
 		return err
 	}
 
-	// write into csv
-	_, err = output.WriteString("database,prefix,size,size_readable,key_count\n")
-	if err != nil {
-		return fmt.Errorf("write header failed: %v", err)
+	if action == "sum" {
+		fmt.Printf("key count: %d, total size: %d(%s)\n", keyCount, totalSize, bytefmt.FormatSize(uint64(totalSize)))
 	}
-	csvWriter := csv.NewWriter(output)
-	defer csvWriter.Flush()
-	// printNode := func(node TmpNode) error {
-	// 	dbStr := strconv.Itoa(node.db)
-	// 	return csvWriter.Write([]string{
-	// 		dbStr,
-	// 		node.keyPrefix,
-	// 		strconv.Itoa(node.totalSize),
-	// 		bytefmt.FormatSize(uint64(node.totalSize)),
-	// 		strconv.Itoa(node.keyCount),
-	// 	})
-	// }
-	// for _, n := range toplist.list {
-	// 	node := n.(TmpNode)
-	// 	err := printNode(node)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
 
 	return nil
 }
