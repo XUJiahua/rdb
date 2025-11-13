@@ -12,12 +12,12 @@ import (
 const help = `
 This is a tool to parse Redis' RDB files
 Options:
-  -c command, including: json/memory/aof/bigkey/prefix/flamegraph
+  -c command, including: json/memory/aof/bigkey/prefix/prefixv2/dbstat/flamegraph
   -o output file path
   -n number of result, using in command: bigkey/prefix
   -port listen port for flame graph web service
-  -sep separator for flamegraph, rdb will separate key by it, default value is ":". 
-		supporting multi separators: -sep sep1 -sep sep2 
+  -sep separator for flamegraph, rdb will separate key by it, default value is ":".
+		supporting multi separators: -sep sep1 -sep sep2
   -regex using regex expression filter keys
   -no-expired filter expired keys
 
@@ -35,6 +35,8 @@ parameters between '[' and ']' is optional
   rdb -c prefix [-n 10] [-max-depth 3] [-o prefix-report.csv] dump.rdb
 6. draw flamegraph
   rdb -c flamegraph [-port 16379] [-sep :] dump.rdb
+7. generate database statistics
+  rdb -c dbstat [-o db-stats.csv] dump.rdb
 `
 
 type separators []string
@@ -119,6 +121,8 @@ func main() {
 		err = helper.PrefixV2Analyse(src, n, maxDepth, outputFile, options...)
 	case "filter":
 		err = helper.Filter(src, filterDate, action, outputFile, options...)
+	case "dbstat":
+		err = helper.DBStatistics(src, outputFile, options...)
 	case "flamegraph":
 		_, err = helper.FlameGraph(src, port, seps, options...)
 		if err != nil {

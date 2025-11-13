@@ -62,6 +62,9 @@ rdb -c prefix -n 10 -max-depth 3 -o prefix-report.csv dump.rdb
 # Analyze by prefix v2 (character-based, simple string prefix)
 rdb -c prefixv2 -n 20 -max-depth 10 -o prefix-report.csv dump.rdb
 
+# Generate database statistics (per-DB storage summary)
+rdb -c dbstat -o db-stats.csv dump.rdb
+
 # Generate flamegraph (starts web server)
 rdb -c flamegraph -port 16379 -sep : dump.rdb
 
@@ -101,6 +104,7 @@ rdb -c json -o output.json -no-expired dump.rdb
 - `bigkey.go`: Find largest keys
 - `prefix.go`: Hierarchical prefix analysis using radix tree with delimiter-based grouping
 - `prefixv2.go`: Simple character-based prefix analysis (groups by first N characters)
+- `dbstat.go`: Per-database storage statistics (total size, key count, average key size)
 - `radix.go`: Radix tree implementation for prefix analysis
 - `flamegraph.go`: Generate flame graph data
 - `filter.go`: Key filtering by date/regex
