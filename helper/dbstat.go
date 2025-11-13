@@ -27,6 +27,7 @@ func (s DBStat) GetSize() int {
 
 // DBStatistics analyzes RDB file and generates per-database statistics
 // Output columns: database, total_size, size_readable, key_count, avg_key_size, avg_size_readable
+// Note: size includes key + value + Redis internal overhead (hash table entry, object header, expiry if exists)
 func DBStatistics(rdbFilename string, output *os.File, options ...interface{}) error {
 	if rdbFilename == "" {
 		return errors.New("src file path is required")

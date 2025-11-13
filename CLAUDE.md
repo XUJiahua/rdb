@@ -149,3 +149,18 @@ rdb -c json -o output.json -no-expired dump.rdb
 - Test files use RDB samples from the `cases/` directory
 - The main branch is `master`; current development branch is `prefixv2`
 - GoReleaser config (`.goreleaser.yml`) handles multi-platform binary releases
+
+### Memory Size Calculation
+
+The `GetSize()` method (model/model.go:107) returns the **complete memory footprint** of a Redis object, including:
+- **Key**: String size + SDS (Simple Dynamic String) header overhead
+- **Value**: Content size + encoding-specific structure overhead (e.g., quicklist for lists, skiplist+hashtable for zsets)
+- **Redis internals**: Hash table entry overhead + redisObject header + expiry dict entry (if TTL exists)
+
+The calculation is performed by `memprofiler.SizeOfObject()` (memprofiler/memprofiler.go:16), which calls `topLevelObjectOverhead()` (memprofiler/common.go:83) to add:
+- Hash table entry: ~24 bytes
+- Redis object header: ~16 bytes
+- Key string with SDS overhead
+- Expiry overhead: ~32 bytes (if TTL set)
+
+This means commands like `memory`, `dbstat`, `bigkey`, and `prefix` report the actual Redis memory usage, not just the raw data size.

@@ -45,6 +45,41 @@ func WithRegexOption(expr string) RegexOption {
 	return &expr
 }
 
+// excludeRegexDecoder excludes keys matching the regex pattern
+type excludeRegexDecoder struct {
+	reg *regexp.Regexp
+	dec decoder
+}
+
+func (d *excludeRegexDecoder) Parse(cb func(object model.RedisObject) bool) error {
+	return d.dec.Parse(func(object model.RedisObject) bool {
+		if !d.reg.MatchString(object.GetKey()) {
+			return cb(object)
+		}
+		return true
+	})
+}
+
+// excludeRegexWrapper returns a decoder that excludes keys matching the pattern
+func excludeRegexWrapper(d decoder, expr string) (*excludeRegexDecoder, error) {
+	reg, err := regexp.Compile(expr)
+	if err != nil {
+		return nil, fmt.Errorf("illegal exclude regex expression: %v", expr)
+	}
+	return &excludeRegexDecoder{
+		dec: d,
+		reg: reg,
+	}, nil
+}
+
+// ExcludeRegexOption enable exclude regex filters
+type ExcludeRegexOption *string
+
+// WithExcludeRegexOption creates an ExcludeRegexOption from regex expression
+func WithExcludeRegexOption(expr string) ExcludeRegexOption {
+	return &expr
+}
+
 // noExpiredDecoder filter all expired keys
 type noExpiredDecoder struct {
 	dec decoder
@@ -71,11 +106,14 @@ func WithNoExpiredOption() NoExpiredOption {
 
 func wrapDecoder(dec decoder, options ...interface{}) (decoder, error) {
 	var regexOpt RegexOption
+	var excludeRegexOpt ExcludeRegexOption
 	var noExpiredOpt NoExpiredOption
 	for _, opt := range options {
 		switch o := opt.(type) {
 		case RegexOption:
 			regexOpt = o
+		case ExcludeRegexOption:
+			excludeRegexOpt = o
 		case NoExpiredOption:
 			noExpiredOpt = o
 		}
@@ -83,6 +121,13 @@ func wrapDecoder(dec decoder, options ...interface{}) (decoder, error) {
 	if regexOpt != nil {
 		var err error
 		dec, err = regexWrapper(dec, *regexOpt)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if excludeRegexOpt != nil {
+		var err error
+		dec, err = excludeRegexWrapper(dec, *excludeRegexOpt)
 		if err != nil {
 			return nil, err
 		}

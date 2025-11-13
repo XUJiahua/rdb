@@ -19,6 +19,7 @@ Options:
   -sep separator for flamegraph, rdb will separate key by it, default value is ":".
 		supporting multi separators: -sep sep1 -sep sep2
   -regex using regex expression filter keys
+  -exclude-regex using regex expression to exclude keys
   -no-expired filter expired keys
 
 Examples:
@@ -58,6 +59,7 @@ func main() {
 	var port int
 	var seps separators
 	var regexExpr string
+	var excludeRegexExpr string
 	var noExpired bool
 	var maxDepth int
 	var filterDate string
@@ -70,6 +72,7 @@ func main() {
 	flagSet.IntVar(&port, "port", 0, "listen port for web")
 	flagSet.Var(&seps, "sep", "separator for flame graph")
 	flagSet.StringVar(&regexExpr, "regex", "", "regex expression")
+	flagSet.StringVar(&excludeRegexExpr, "exclude-regex", "", "exclude regex expression")
 	flagSet.BoolVar(&noExpired, "no-expired", false, "filter expired keys")
 	flagSet.StringVar(&filterDate, "filter-date", "", "keep keys before date, format: 20250612")
 	flagSet.StringVar(&action, "action", "", "action for filter: print(default), sum")
@@ -88,6 +91,9 @@ func main() {
 	var options []interface{}
 	if regexExpr != "" {
 		options = append(options, helper.WithRegexOption(regexExpr))
+	}
+	if excludeRegexExpr != "" {
+		options = append(options, helper.WithExcludeRegexOption(excludeRegexExpr))
 	}
 	if noExpired {
 		options = append(options, helper.WithNoExpiredOption())
