@@ -96,9 +96,16 @@ func Filter(rdbFilename string, filterDate string, action string, output *os.Fil
 		}
 	}
 
-	filterTime, err := parseDate(filterDate)
-	if err != nil {
-		return fmt.Errorf("parse expired date failed: %v", err)
+	// Parse filter date if provided
+	var filterTime time.Time
+	var hasDateFilter bool
+	if filterDate != "" {
+		var err error
+		filterTime, err = parseDate(filterDate)
+		if err != nil {
+			return fmt.Errorf("parse expired date failed: %v", err)
+		}
+		hasDateFilter = true
 	}
 
 	if rdbFilename == "" {
@@ -119,17 +126,20 @@ func Filter(rdbFilename string, filterDate string, action string, output *os.Fil
 	}
 
 	err = dec.Parse(func(object model.RedisObject) bool {
-		key := object.GetKey()
-		timeStr := getLastElement(key)
-		if timeStr == "" {
-			return true
-		}
-		t, err := parseDate(timeStr)
-		if err != nil {
-			return true
-		}
-		if !t.Before(filterTime) {
-			return true
+		// Apply date filter only if -filter-date is specified
+		if hasDateFilter {
+			key := object.GetKey()
+			timeStr := getLastElement(key)
+			if timeStr == "" {
+				return true
+			}
+			t, err := parseDate(timeStr)
+			if err != nil {
+				return true
+			}
+			if !t.Before(filterTime) {
+				return true
+			}
 		}
 
 		filterAction(object)

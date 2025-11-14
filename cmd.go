@@ -20,6 +20,8 @@ Options:
 		supporting multi separators: -sep sep1 -sep sep2
 		for fieldgroup: field separator, default is ":"
   -field field indexes for grouping (1-based), e.g., "1" or "1,2,3"
+  -filter-date filter keys by date in last field (optional), format: YYYYMMDD or YYYYMM
+  -action action for filter command: print(default), sum, del
   -regex using regex expression filter keys
   -exclude-regex using regex expression to exclude keys
   -no-expired filter expired keys
@@ -43,6 +45,10 @@ parameters between '[' and ']' is optional
 8. group by field (for keys like "f1:i00018:xxx:90221900:2024111214")
   rdb -c fieldgroup -field 1 [-sep :] [-n 20] [-o field-report.csv] dump.rdb
   rdb -c fieldgroup -field 1,2 [-sep :] [-n 20] [-o field-report.csv] dump.rdb
+9. filter keys (can use -regex, -filter-date, or both)
+  rdb -c filter -regex '^user:' [-action del] dump.rdb
+  rdb -c filter -filter-date '20241113' [-action sum] dump.rdb
+  rdb -c filter -regex '^f1:' -filter-date '20241113' -exclude-regex ':test:' -action del dump.rdb
 `
 
 type separators []string
