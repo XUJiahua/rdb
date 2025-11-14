@@ -12,12 +12,14 @@ import (
 const help = `
 This is a tool to parse Redis' RDB files
 Options:
-  -c command, including: json/memory/aof/bigkey/prefix/prefixv2/dbstat/flamegraph
+  -c command, including: json/memory/aof/bigkey/prefix/prefixv2/fieldgroup/dbstat/flamegraph
   -o output file path
-  -n number of result, using in command: bigkey/prefix
+  -n number of result, using in command: bigkey/prefix/fieldgroup
   -port listen port for flame graph web service
   -sep separator for flamegraph, rdb will separate key by it, default value is ":".
 		supporting multi separators: -sep sep1 -sep sep2
+		for fieldgroup: field separator, default is ":"
+  -field field indexes for grouping (1-based), e.g., "1" or "1,2,3"
   -regex using regex expression filter keys
   -exclude-regex using regex expression to exclude keys
   -no-expired filter expired keys
@@ -38,6 +40,9 @@ parameters between '[' and ']' is optional
   rdb -c flamegraph [-port 16379] [-sep :] dump.rdb
 7. generate database statistics
   rdb -c dbstat [-o db-stats.csv] dump.rdb
+8. group by field (for keys like "f1:i00018:xxx:90221900:2024111214")
+  rdb -c fieldgroup -field 1 [-sep :] [-n 20] [-o field-report.csv] dump.rdb
+  rdb -c fieldgroup -field 1,2 [-sep :] [-n 20] [-o field-report.csv] dump.rdb
 `
 
 type separators []string
@@ -64,6 +69,7 @@ func main() {
 	var maxDepth int
 	var filterDate string
 	var action string
+	var fieldIndexes string
 	var err error
 	flagSet.StringVar(&cmd, "c", "", "command for rdb: json")
 	flagSet.StringVar(&output, "o", "", "output file path")
@@ -76,6 +82,7 @@ func main() {
 	flagSet.BoolVar(&noExpired, "no-expired", false, "filter expired keys")
 	flagSet.StringVar(&filterDate, "filter-date", "", "keep keys before date, format: 20250612")
 	flagSet.StringVar(&action, "action", "", "action for filter: print(default), sum")
+	flagSet.StringVar(&fieldIndexes, "field", "", "field indexes for grouping, e.g., 1 or 1,2,3")
 	_ = flagSet.Parse(os.Args[1:]) // ExitOnError
 	src := flagSet.Arg(0)
 
@@ -125,6 +132,21 @@ func main() {
 		err = helper.PrefixAnalyse(src, n, maxDepth, outputFile, options...)
 	case "prefixv2":
 		err = helper.PrefixV2Analyse(src, n, maxDepth, outputFile, options...)
+	case "fieldgroup":
+		if fieldIndexes == "" {
+			fmt.Println("error: -field parameter is required for fieldgroup command")
+			return
+		}
+		indexes, parseErr := helper.ParseFieldIndexes(fieldIndexes)
+		if parseErr != nil {
+			fmt.Printf("error: %v\n", parseErr)
+			return
+		}
+		separator := ":"
+		if len(seps) > 0 {
+			separator = seps[0]
+		}
+		err = helper.FieldGroupAnalyse(src, indexes, separator, n, outputFile, options...)
 	case "filter":
 		err = helper.Filter(src, filterDate, action, outputFile, options...)
 	case "dbstat":
